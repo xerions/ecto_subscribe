@@ -1,5 +1,4 @@
 import Ecto.Subscribe.Api
-import Exd.Model.Api, only: :macros
 
 Code.require_file "test/db/dbhelper.ex"
 
@@ -16,8 +15,7 @@ end
 
 defmodule Weather2 do
   use Ecto.Schema
-  use Ecto.Model
-  subscribe(adapter: :log)
+  subscribe(adapter: Ecto.Subscribe.Adapter.Log, repo: Test.Repo)
   schema "test_table2" do
     field :f, :string
   end
@@ -25,7 +23,7 @@ end
 
 defmodule Test.Repo do
   use Ecto.Repo,
-  otp_app: :exd,
+  otp_app: :ecto_subscribe,
   # TODO remove it
   adapter: TestDbHelper.get_adapter
 end
@@ -35,19 +33,17 @@ defmodule EctoSubscribeTest do
 
   {adapter, url} = case Mix.env do
                      :pg ->
-                       {Ecto.Adapters.Postgres, "ecto://postgres:postgres@localhost/exd_test"}
+                       {Ecto.Adapters.Postgres, "ecto://postgres:postgres@localhost/ecto_subscribe_test"}
                      _ ->
-                       {Ecto.Adapters.MySQL, "ecto://root@localhost/exd_test"}
+                       {Ecto.Adapters.MySQL, "ecto://root@localhost/ecto_subscribe_test"}
                    end
   
-  Application.put_env(:exd,
+  Application.put_env(:ecto_subscribe,
                       Test.Repo,
                       adapter: adapter,
                       url: url,
                       size: 1,
                       max_overflow: 0)
-
-  gen_api Weather2, Test.Repo
 
   test "ecto_subscribe test" do
     Ecto.Subscribe.Test.DbHelper.drop_db    
@@ -55,7 +51,9 @@ defmodule EctoSubscribeTest do
 
     Test.Repo.start_link()
     Ecto.Migration.Auto.migrate(Test.Repo, Weather2)
-    Ecto.Subscribe.Api.subscribe(Weather2, %{f: "test"}, [:create])
+
+    Ecto.Subscribe.init(Test.Repo)
+    Ecto.Subscribe.Api.subscribe(Test.Repo, Weather2, %{f: "test"}, [:create])
     Test.Repo.insert(%Weather2{f: "test"})
 
     Ecto.Subscribe.Test.DbHelper.drop_db
