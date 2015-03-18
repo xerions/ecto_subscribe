@@ -5,24 +5,23 @@ defmodule Ecto.Subscribe.Api do
 
   @doc """
   """
+  def subscribe(repo, model, actions) do
+    actions = get_actions(actions)
+    repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Atom.to_string),
+                                                   subscription_info: "all",
+                                                   subscription_actions: "all"})
+    :ok
+  end
+
   def subscribe(repo, model, subscription_data, actions) do
-    case Enum.filter(actions, fn(action) ->
-          &Enum.member?([:create, :update, :delete], &1)
-        end) do
-      [] ->
-        :wrong_action
-      _ ->
-        #
-        # TODO no we store all as string (think about more flexible way)
-        #
-        [field_name] = Map.keys(subscription_data)
-        {:ok, field_val} = Map.fetch(subscription_data, field_name)
-        # insert new subscription in the ecto_subscribe table
-        repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Atom.to_string),
-                                                       subscription_info: (field_name |> Atom.to_string) <> ":" <> (field_val |> to_string),
-                                                       subscription_actions: actions_to_string(actions)})
-        :ok
-    end
+    actions = get_actions(actions)
+    # TODO no we store all as string (think about more flexible way)
+    [field_name] = Map.keys(subscription_data)
+    {:ok, field_val} = Map.fetch(subscription_data, field_name)
+    repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Atom.to_string),
+                                                   subscription_info: (field_name |> Atom.to_string) <> ":" <> (field_val |> to_string),
+                                                   subscription_actions: actions_to_string(actions)})
+    :ok
   end
 
   def call_adapter(kw, changeset, action) do
@@ -68,13 +67,20 @@ defmodule Ecto.Subscribe.Api do
       :nothing_changed ->
         :pass
       :updated ->
-        call_adapter(kw, changeset, :create)
+        call_adapter(kw, changeset, action)
     end
   end
 
   def query_model_from_system_tbl(repo, model) do
     model = model |> Atom.to_string
     repo.all(from q in Ecto.Subscribe.Schema.SystemTable, where: q.model == ^model)
+  end
+
+  def get_actions([]) do
+    [:create, :update, :deelte]
+  end
+  def get_actions(actions) do
+    actions
   end
 
   def find_subscription([], _, _, _) do
@@ -90,7 +96,8 @@ defmodule Ecto.Subscribe.Api do
   end
   
   def find_subscription_helper(subscription_row_in_db, subscription_in_db, changeset, model, action) do
-    case Enum.member?(string_to_actions(subscription_row_in_db.subscription_actions), action) do
+    actions = string_to_actions(subscription_row_in_db.subscription_actions)
+    case Enum.member?(actions, action) do
       true ->
         changeset_from_db = db_row_to_map(subscription_row_in_db.subscription_info, model)
         if changeset_from_db == changeset.changes do
@@ -99,8 +106,16 @@ defmodule Ecto.Subscribe.Api do
           :nothing_changed
         end
       false ->
-        find_subscription(subscription_in_db, changeset, model, action)
+        is_subscription_for_all(actions, subscription_in_db, changeset, model, action)
     end
+  end
+
+  def is_subscription_for_all([:all], _, _, _, _) do
+    :updated
+  end
+
+  def is_subscription_for_all(_, subscription_in_db, changeset, model, action) do
+    find_subscription(subscription_in_db, changeset, model, action)
   end
 
   def db_row_to_map(str, model) do
