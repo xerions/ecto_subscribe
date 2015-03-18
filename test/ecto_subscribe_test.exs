@@ -53,8 +53,9 @@ defmodule EctoSubscribeTest do
     Ecto.Migration.Auto.migrate(Test.Repo, Weather2)
 
     Ecto.Subscribe.init(Test.Repo)
-    Ecto.Subscribe.Api.subscribe(Test.Repo, Weather2, %{f: "test"}, [:create])
+    Ecto.Subscribe.Api.subscribe(Test.Repo, Weather2, [:create])
     Test.Repo.insert(%Weather2{f: "test"})
+    Test.Repo.delete(%Weather2{id: 1})
 
     Ecto.Subscribe.Test.DbHelper.drop_db
   end
