@@ -1,5 +1,7 @@
 defmodule Ecto.Subscribe.Adapter do
   use Behaviour
 
-  defcallback send(Ecto.Changeset.t, atom) :: atom
+  @doc """
+  """
+  defcallback send(map, Ecto.Changeset.t, atom) :: atom
 end

@@ -5,27 +5,26 @@ defmodule Ecto.Subscribe.Api do
 
   @doc """
   """
-  def subscribe(repo, model) do
+  def subscribe(repo, model, opts) do
     repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Atom.to_string),
                                                    subscription_info: "all",
-                                                   subscription_actions: "all"})
+                                                   subscription_actions: "all",
+                                                   adapter: get_opts_field(opts, :adapter),
+                                                   receiver: get_opts_field(opts, :receiver)})
     :ok
   end
 
-  def subscribe(repo, model, subscription_data, actions \\ []) do
+  def subscribe(repo, model, subscription_data, opts) do
     repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Atom.to_string),
                                                    subscription_info: subscription_data,
-                                                   subscription_actions: actions_to_string(get_actions(actions))})
+                                                   subscription_actions: actions_to_string(get_actions(get_opts_field(opts, :actions))),
+                                                   adapter: get_opts_field(opts, :adapter),
+                                                   receiver: get_opts_field(opts, :receiver)})
     :ok
   end
 
-  def call_adapter(kw, changeset, action) do
-    case List.keyfind(kw, :adapter, 0) do
-      nil ->
-        {:error, :wrong_adapter}
-      {:adapter, adapter} ->
-        (adapter).send(changeset, action)
-    end
+  def call_adapter(subscription_information, changeset, action) do
+    (subscription_information.adapter |> String.to_atom).send(subscription_information, changeset, action)
   end
 
   @doc """
@@ -59,27 +58,42 @@ defmodule Ecto.Subscribe.Api do
     {_, repo} = List.keyfind(kw, :repo, 0)
     query_result = query_model_from_system_tbl(repo, model)
     case find_subscription(query_result, changeset, model, action) do
-      :false ->
-        :pass
-      :true ->
-        call_adapter(kw, changeset, action)
+      {:false, _} ->
+        :do_nothing
+      {:true, subscription_information} ->
+        call_adapter(subscription_information, changeset, action)
     end
   end
 
+  #
+  # Utils
+  #
   def query_model_from_system_tbl(repo, model) do
-    model = model |> Atom.to_string
+    model = Macro.to_string(model)
     repo.all(from q in Ecto.Subscribe.Schema.SystemTable, where: q.model == ^model)
   end
 
-  def get_actions([]) do
-    [:create, :update, :deelte]
+  def get_opts_field(opts, field) do
+    case List.keyfind(opts, field, 0) do
+      nil ->
+        ""
+      {_, val} when is_list(val) ->
+        val
+      {_, val} ->
+        val |> to_string
+    end
   end
+
+  def get_actions("") do
+    [:create, :update, :delete]
+  end
+
   def get_actions(actions) do
     actions
   end
 
   def find_subscription([], _, _, _) do
-    :false
+    {:false, []}
   end
 
   def find_subscription([subscription_row_in_db | subscription_in_db], changeset, model, action) do
@@ -95,32 +109,32 @@ defmodule Ecto.Subscribe.Api do
     case Enum.member?(actions, action) do
       true ->
         {field_name, operator, val} = db_row_to_map(subscription_row_in_db.subscription_info, model)
-				validate_change(changeset.changes, field_name, operator, val)
+        validate_change(subscription_row_in_db, changeset.changes, field_name, operator, val)
       false ->
         is_subscription_for_all(actions, subscription_in_db, changeset, model, action)
     end
   end
 
-	def validate_change(changes, field_name, operator, val) do
-		case Map.get(changes, field_name, 0) do
-			nil ->
-				:false
-			updated_val ->
-				case operator do
-					"==" ->
-						val == updated_val
-					">" ->
-						updated_val > val 
-					"<" ->
-						updated_val > val
-					_ ->
-						:false
-				end
-		end
-	end
+  def validate_change(subscription_row_in_db, changes, field_name, operator, val) do
+    case Map.get(changes, field_name, 0) do
+      nil ->
+        :false
+      updated_val ->
+        case operator do
+          "==" ->
+            {val == updated_val, subscription_row_in_db}
+          ">" ->
+            {updated_val > val, subscription_row_in_db}
+          "<" ->
+            {updated_val > val, subscription_row_in_db}
+          _ ->
+            {:false, []}
+        end
+    end
+  end
 
-  def is_subscription_for_all([:all], _, _, _, _) do
-    :true
+  def is_subscription_for_all([:all], subscription_in_db, _, _, _) do
+    {:true, subscription_in_db}
   end
 
   def is_subscription_for_all(_, subscription_in_db, changeset, model, action) do
@@ -153,5 +167,4 @@ defmodule Ecto.Subscribe.Api do
       _ -> val
     end
   end
-
 end
