@@ -15,7 +15,7 @@ end
 
 defmodule Weather2 do
   use Ecto.Schema
-  subscribe(adapter: Ecto.Subscribe.Adapter.Log, repo: Test.Repo)
+  subscribe(repo: Test.Repo)
   schema "test_table2" do
     field :f, :string
     field :i, :integer
@@ -52,12 +52,10 @@ defmodule EctoSubscribeTest do
 
     Test.Repo.start_link()
     Ecto.Migration.Auto.migrate(Test.Repo, Weather2)
-
     Ecto.Subscribe.init(Test.Repo)
-    Ecto.Subscribe.Api.subscribe(Test.Repo, Weather2, "i > 0", [:create])
+    #Ecto.Subscribe.Api.subscribe(Test.Repo, Weather2, "i > 0", [adapter: Ecto.Subscribe.Adapter.Remote, receiver: TestProc, actions: [:create]])
 
     Test.Repo.insert(%Weather2{f: "test", i: 100})
-    Test.Repo.delete(%Weather2{id: 1})
 
     Ecto.Subscribe.Test.DbHelper.drop_db
   end
