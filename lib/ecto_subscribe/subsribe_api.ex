@@ -6,7 +6,7 @@ defmodule Ecto.Subscribe.Api do
   @doc """
   """
   def subscribe(repo, model, opts) do
-    repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Atom.to_string),
+    repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Macro.to_string),
                                                    subscription_info: "all",
                                                    subscription_actions: "all",
                                                    adapter: get_opts_field(opts, :adapter),
@@ -15,7 +15,7 @@ defmodule Ecto.Subscribe.Api do
   end
 
   def subscribe(repo, model, subscription_data, opts) do
-    repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Atom.to_string),
+    repo.insert(%Ecto.Subscribe.Schema.SystemTable{model: (model |> Macro.to_string),
                                                    subscription_info: subscription_data,
                                                    subscription_actions: actions_to_string(get_actions(get_opts_field(opts, :actions))),
                                                    adapter: get_opts_field(opts, :adapter),
@@ -56,7 +56,7 @@ defmodule Ecto.Subscribe.Api do
 
   def execute(kw, changeset, model, action) do
     {_, repo} = List.keyfind(kw, :repo, 0)
-    query_result = query_model_from_system_tbl(repo, model)
+    query_result = query_model_from_system_tbl(repo, Macro.to_string(model))
     case find_subscription(query_result, changeset, model, action) do
       {:false, _} ->
         :do_nothing
@@ -69,7 +69,7 @@ defmodule Ecto.Subscribe.Api do
   # Utils
   #
   def query_model_from_system_tbl(repo, model) do
-    model = Macro.to_string(model)
+    #model = Macro.to_string(model)
     repo.all(from q in Ecto.Subscribe.Schema.SystemTable, where: q.model == ^model)
   end
 
