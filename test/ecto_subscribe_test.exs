@@ -1,62 +1,32 @@
 import Ecto.Subscribe.Api
 
-Code.require_file "test/db/dbhelper.ex"
+import Ecto.Query
 
-defmodule TestDbHelper do
-  def get_adapter do
-    case Mix.env do
-      :pg ->
-        Ecto.Adapters.Postgres
-      _ ->
-        Ecto.Adapters.MySQL
-    end
-  end
-end
-
-defmodule Weather2 do
+defmodule TestModel do
   use Ecto.Schema
-  subscribe(repo: Test.Repo)
+  @primary_key false
+  subscribe(repo: EctoIt.Repo)
   schema "test_table2" do
-    field :f, :string
+    field :f, :string, primary_key: true
     field :i, :integer
   end
 end
 
-defmodule Test.Repo do
-  use Ecto.Repo,
-  otp_app: :ecto_subscribe,
-  # TODO remove it
-  adapter: TestDbHelper.get_adapter
-end
-
 defmodule EctoSubscribeTest do
   use ExUnit.Case
-
-  {adapter, url} = case Mix.env do
-                     :pg ->
-                       {Ecto.Adapters.Postgres, "ecto://postgres:postgres@localhost/ecto_subscribe_test"}
-                     _ ->
-                       {Ecto.Adapters.MySQL, "ecto://root@localhost/ecto_subscribe_test"}
-                   end
-  
-  Application.put_env(:ecto_subscribe,
-                      Test.Repo,
-                      adapter: adapter,
-                      url: url,
-                      size: 1,
-                      max_overflow: 0)
-
   test "ecto_subscribe test" do
-    Ecto.Subscribe.Test.DbHelper.drop_db    
-    Ecto.Subscribe.Test.DbHelper.create_db
+    :ok = :application.start(:ecto_it)
+    Ecto.Migration.Auto.migrate(EctoIt.Repo, TestModel)
+    Ecto.Subscribe.init(EctoIt.Repo)
+    Ecto.Subscribe.Api.subscribe(EctoIt.Repo, TestModel, "i > 0", [adapter: Ecto.Subscribe.Adapter.Log])
+    EctoIt.Repo.insert(%TestModel{f: "test", i: 100})
 
-    Test.Repo.start_link()
-    Ecto.Migration.Auto.migrate(Test.Repo, Weather2)
-    Ecto.Subscribe.init(Test.Repo)
-    #Ecto.Subscribe.Api.subscribe(Test.Repo, Weather2, "i > 0", [adapter: Ecto.Subscribe.Adapter.Remote, receiver: TestProc, actions: [:create]])
-
-    Test.Repo.insert(%Weather2{f: "test", i: 100})
-
-    Ecto.Subscribe.Test.DbHelper.drop_db
+    query = from s in Ecto.Subscribe.Schema.SystemTable, select: s
+    [result] = EctoIt.Repo.all(query)
+    assert result.adapter == "Elixir.Ecto.Subscribe.Adapter.Log"
+    assert result.model == "TestModel"
+    assert result.subscription_actions == "create,update,delete"
+    assert result.subscription_info == "i > 0"
+    :ok = :application.stop(:ecto_it)
   end
 end
