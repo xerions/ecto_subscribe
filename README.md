@@ -9,6 +9,8 @@ Usage
 You can define your `ecto` model and use `subscribe` macro:
 
 ```elixir
+import Ecto.Subscribe.Api
+
 defmodule MyModel do
   use Ecto.Model
 

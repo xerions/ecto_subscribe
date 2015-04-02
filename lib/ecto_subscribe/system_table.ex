@@ -6,5 +6,6 @@ defmodule Ecto.Subscribe.Schema.SystemTable do
     field :subscription_actions, :string
     field :adapter, :string
     field :receiver, :string
+    field :callback, :string
   end
 end

@@ -10,7 +10,8 @@ defmodule Ecto.Subscribe.Api do
                                                    subscription_info: "all",
                                                    subscription_actions: "all",
                                                    adapter: get_opts_field(opts, :adapter),
-                                                   receiver: get_opts_field(opts, :receiver)})
+                                                   receiver: get_opts_field(opts, :receiver),
+                                                   callback: get_opts_field(opts, :callback)})
     :ok
   end
 
@@ -19,7 +20,8 @@ defmodule Ecto.Subscribe.Api do
                                                    subscription_info: subscription_data,
                                                    subscription_actions: actions_to_string(get_actions(get_opts_field(opts, :actions))),
                                                    adapter: get_opts_field(opts, :adapter),
-                                                   receiver: get_opts_field(opts, :receiver)})
+                                                   receiver: get_opts_field(opts, :receiver),
+                                                   callback: get_opts_field(opts, :callback)})
     :ok
   end
 
@@ -69,7 +71,6 @@ defmodule Ecto.Subscribe.Api do
   # Utils
   #
   def query_model_from_system_tbl(repo, model) do
-    #model = Macro.to_string(model)
     repo.all(from q in Ecto.Subscribe.Schema.SystemTable, where: q.model == ^model)
   end
 
@@ -144,7 +145,8 @@ defmodule Ecto.Subscribe.Api do
   def db_row_to_map(str, model) do
     [name, operator, val] = String.split(str, " ")
     type = model.__schema__(:field, name |> String.to_atom)
-    {String.to_atom(name), operator, get_val_with_correct_type_from_string(type, val)}
+    changeset = Ecto.Changeset.cast(model.__struct__, %{i: "1"}, [], [:i])
+    {String.to_atom(name), operator, changeset.changes[name |> String.to_atom]}
   end
 
   def actions_to_string(actions) do
@@ -155,16 +157,6 @@ defmodule Ecto.Subscribe.Api do
     splitten_string = String.split(str, ",")
     for s <- splitten_string do
       s |> String.to_atom
-    end
-  end
-
-  # TODO think about more flexible way how to convert to correct types
-  def get_val_with_correct_type_from_string(type, val) do
-    case type do
-      :integer -> String.to_integer val
-      :float   -> String.to_float val
-      :boolean -> String.to_atom val
-      _ -> val
     end
   end
 end

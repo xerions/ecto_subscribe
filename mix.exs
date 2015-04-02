@@ -26,8 +26,8 @@ defmodule EctoSubscribe.Mixfile do
   #
   # Type `mix help deps` for more examples and options
   defp deps do
-    [{:postgrex, ">= 0.0.0"},
-     {:mariaex, ">= 0.0.0"},
+    [{:postgrex, ">= 0.0.0", optional: true},
+     {:mariaex, ">= 0.0.0", optional: true},
      {:ecto, "~> 0.10.1"},
      {:ecto_migrate, git: "https://github.com/xerions/ecto_migrate"},
      {:ecto_it, git: "https://github.com/xerions/ecto_it"}]
