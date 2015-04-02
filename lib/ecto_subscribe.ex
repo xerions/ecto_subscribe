@@ -10,6 +10,7 @@ defmodule Ecto.Subscribe do
   end
 
   def init(repo) do
+    Ecto.Migration.Auto.migrate(repo, Ecto.Subscribe.Schema.SystemTable.Key)
     Ecto.Migration.Auto.migrate(repo, Ecto.Subscribe.Schema.SystemTable)
   end
 end
