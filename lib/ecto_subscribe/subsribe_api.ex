@@ -59,12 +59,7 @@ defmodule Ecto.Subscribe.Api do
   def execute(kw, changeset, model, action) do
     {_, repo} = List.keyfind(kw, :repo, 0)
     query_result = query_model_from_system_tbl(repo, Macro.to_string(model))
-    case find_subscription(query_result, changeset, model, action) do
-      {:false, _} ->
-        :do_nothing
-      {:true, subscription_information} ->
-        call_adapter(subscription_information, changeset, action)
-    end
+    find_subscription(query_result, changeset, model, action)
   end
 
   #
@@ -110,7 +105,13 @@ defmodule Ecto.Subscribe.Api do
     case Enum.member?(actions, action) do
       true ->
         {field_name, operator, val} = db_row_to_map(subscription_row_in_db.subscription_info, model)
-        validate_change(subscription_row_in_db, changeset.changes, field_name, operator, val)
+        case validate_change(subscription_row_in_db, changeset.changes, field_name, operator, val) do
+          {:false, _} ->
+            find_subscription(subscription_in_db, changeset, model, action)
+          {_, subscription_info} ->
+            call_adapter(subscription_info, changeset, action)
+            find_subscription(subscription_in_db, changeset, model, action)
+        end
       false ->
         is_subscription_for_all(actions, subscription_in_db, changeset, model, action)
     end
